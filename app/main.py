@@ -10,6 +10,49 @@ app = FastAPI(title="FastAPI + Stripe BLIK Demo (with DB + Admin)")
 @app.on_event("startup")
 def on_startup():
     init_db()
+    
+    # Auto-initialize admin user and settings if they don't exist
+    from .db import get_session
+    from .models import AdminUser, AppSettings
+    from .auth import get_password_hash
+    from sqlmodel import select
+    
+    with get_session() as db:
+        # Check if admin user exists, create if not
+        admin_user = db.exec(select(AdminUser).where(AdminUser.username == "admin")).first()
+        if not admin_user:
+            admin_user = AdminUser(
+                username="admin",
+                password_hash=get_password_hash("admin123"),
+                is_active=True
+            )
+            db.add(admin_user)
+            db.commit()
+        
+        # Check if settings exist, create with ENV values if not
+        settings_count = len(db.exec(select(AppSettings)).all())
+        if settings_count == 0:
+            # Initialize with environment values if available, otherwise placeholders
+            import os
+            default_settings = [
+                ("STRIPE_SECRET_KEY", os.getenv("STRIPE_SECRET_KEY", "sk_test_your_stripe_secret_key_here"), "Stripe Secret Key"),
+                ("STRIPE_WEBHOOK_SECRET", os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"), "Stripe Webhook Secret"),
+                ("STRIPE_PUBLISHABLE_KEY", os.getenv("STRIPE_PUBLISHABLE_KEY", "pk_test_your_publishable_key_here"), "Stripe Publishable Key"),
+                ("PAYMENT_METHODS", "card,blik,p24,bancontact,ideal,sofort", "Available Payment Methods"),
+                ("SUPPORTED_CURRENCIES", "pln,usd,eur,gbp", "Supported Currencies"),
+                ("DEFAULT_CURRENCY", "pln", "Default Currency"),
+            ]
+            
+            for key, value, description in default_settings:
+                setting = AppSettings(
+                    key=key,
+                    value=value,
+                    description=description,
+                    updated_by=admin_user.id
+                )
+                db.add(setting)
+            db.commit()
+    
     # Set Stripe API key from database
     stripe.api_key = get_stripe_secret_key()
 
