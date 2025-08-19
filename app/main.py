@@ -1,4 +1,4 @@
-import os, stripe
+import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from .config import settings, get_stripe_secret_key
