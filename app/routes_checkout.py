@@ -20,7 +20,26 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
         # Get Stripe API key from database and set it globally for this request
         stripe_key = get_stripe_secret_key()
         
+        # TEMPORARY: Hardcode the key to test
+        stripe_key = "sk_test_51Rur96HpiHJBnnY7OfOFgEO4YE3d0eDKgCPEGYTfEq9C5V5hMbYI6ZfhKc7kKpOcXrGzZ6OdDgSl3eCr6E6OXKHx00B3aW0x9o"
+        
         print(f"DEBUG: Using Stripe API key: {stripe_key[:20]}...")
+        print(f"DEBUG: Full key: {stripe_key}")
+        print(f"DEBUG: Key length: {len(stripe_key)}")
+        
+        # Double-check the key by querying the database directly
+        from .db import get_session
+        from .models import AppSettings
+        from sqlmodel import select
+        
+        with get_session() as db:
+            setting = db.exec(select(AppSettings).where(AppSettings.key == "STRIPE_SECRET_KEY")).first()
+            if setting:
+                print(f"DEBUG: Direct DB query key: {setting.value[:20]}...")
+                print(f"DEBUG: Direct DB query full key: {setting.value}")
+                if setting.value != stripe_key:
+                    print(f"DEBUG: KEY MISMATCH! get_setting returned different key than direct query")
+                    stripe_key = setting.value
         
         # Create Order
         with get_session() as db:
