@@ -19,6 +19,12 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
     try:
         # Get Stripe API key from database and set it globally for this request
         stripe_key = get_stripe_secret_key()
+        
+        # Force reimport stripe to clear any cached state
+        import importlib
+        import stripe
+        importlib.reload(stripe)
+        
         stripe.api_key = stripe_key
         print(f"DEBUG: Setting Stripe API key to: {stripe_key[:20]}...")
         print(f"DEBUG: Current stripe.api_key: {stripe.api_key[:20]}...")
