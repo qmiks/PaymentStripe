@@ -2,7 +2,7 @@ import uuid
 import stripe
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-from .config import settings, get_stripe_publishable_key
+from .config import settings, get_stripe_publishable_key, get_stripe_secret_key
 from .db import get_session
 from .models import Order
 from .auth import get_setting, log_audit_event

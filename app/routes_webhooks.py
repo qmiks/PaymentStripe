@@ -1,7 +1,7 @@
 import stripe
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
-from .config import settings, get_stripe_webhook_secret
+from .config import settings, get_stripe_webhook_secret, get_stripe_secret_key
 from .db import get_session
 from .models import Order
 from .auth import log_audit_event
