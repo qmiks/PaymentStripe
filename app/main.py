@@ -53,8 +53,7 @@ def on_startup():
                 db.add(setting)
             db.commit()
     
-    # Set Stripe API key from database
-    stripe.api_key = get_stripe_secret_key()
+    # Note: Stripe API key is now loaded dynamically per request
 
 app.include_router(routes_checkout.router)
 app.include_router(routes_webhooks.router)

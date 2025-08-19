@@ -11,6 +11,9 @@ router = APIRouter(tags=["webhooks"])
 
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
+    # Set Stripe API key dynamically from database
+    stripe.api_key = get_stripe_secret_key()
+    
     payload = await request.body()
     sig = request.headers.get("stripe-signature")
     try:

@@ -17,6 +17,9 @@ class CreateSessionRequest(BaseModel):
 @router.post("/session")
 async def create_checkout_session(body: CreateSessionRequest, request: Request):
     try:
+        # Set Stripe API key dynamically from database
+        stripe.api_key = get_stripe_secret_key()
+        
         # Create Order
         with get_session() as db:
             order = Order(amount=body.amount, currency=body.currency.lower(), status="pending")
