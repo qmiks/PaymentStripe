@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FastAPI + Stripe (BLIK) — Demo</title>
+  </head>
+  <body>
+    <h1>FastAPI + Stripe Checkout (BLIK)</h1>
+    <div>
+      <label>Kwota (PLN): <input id="amount" type="number" min="1" step="1" value="20" /></label>
+      <button id="pay">Zapłać (BLIK)</button>
+      <p><a href="/api/orders" target="_blank">Podgląd zamówień (JSON)</a></p>
+    </div>
+    <script>
+      async function createSession(amountPln) {
+        const res = await fetch('/api/checkout/session', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({amount_pln: amountPln})
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+      document.getElementById('pay').addEventListener('click', async () => {
+        const amount = parseInt(document.getElementById('amount').value, 10) || 20;
+        const { url } = await createSession(amount);
+        window.location.href = url;
+      });
+    </script>
+  </body>
+</html>
