@@ -494,10 +494,35 @@
             color: #856404;
         }
         
-        .audit-log-action.admin_init {
-            background: #e2e3e5;
-            color: #383d41;
-        }
+                 .audit-log-action.admin_init {
+             background: #e2e3e5;
+             color: #383d41;
+         }
+         
+         .audit-log-action.payment_attempt_created {
+             background: #d1ecf1;
+             color: #0c5460;
+         }
+         
+         .audit-log-action.payment_attempt_failed {
+             background: #f8d7da;
+             color: #721c24;
+         }
+         
+         .audit-log-action.payment_completed {
+             background: #d4edda;
+             color: #155724;
+         }
+         
+         .audit-log-action.payment_failed {
+             background: #f8d7da;
+             color: #721c24;
+         }
+         
+         .audit-log-action.payment_session_expired {
+             background: #fff3cd;
+             color: #856404;
+         }
         
         .audit-log-timestamp {
             color: #666;
@@ -583,14 +608,19 @@
                 <div class="audit-controls">
                     <div class="filter-group">
                         <label>Filter by Action:</label>
-                        <select id="actionFilter" onchange="loadAuditLogs()">
-                            <option value="">All Actions</option>
-                            <option value="login_success">Login Success</option>
-                            <option value="login_failed">Login Failed</option>
-                            <option value="setting_update">Setting Update</option>
-                            <option value="setting_create">Setting Create</option>
-                            <option value="admin_init">Admin Init</option>
-                        </select>
+                                                 <select id="actionFilter" onchange="loadAuditLogs()">
+                             <option value="">All Actions</option>
+                             <option value="login_success">Login Success</option>
+                             <option value="login_failed">Login Failed</option>
+                             <option value="setting_update">Setting Update</option>
+                             <option value="setting_create">Setting Create</option>
+                             <option value="admin_init">Admin Init</option>
+                             <option value="payment_attempt_created">Payment Attempt Created</option>
+                             <option value="payment_attempt_failed">Payment Attempt Failed</option>
+                             <option value="payment_completed">Payment Completed</option>
+                             <option value="payment_failed">Payment Failed</option>
+                             <option value="payment_session_expired">Payment Session Expired</option>
+                         </select>
                     </div>
                     <div class="filter-group">
                         <label>Filter by User:</label>

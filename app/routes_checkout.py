@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from .config import settings, get_stripe_publishable_key
 from .db import get_session
 from .models import Order
-from .auth import get_setting
+from .auth import get_setting, log_audit_event
 
 router = APIRouter(prefix="/api/checkout", tags=["checkout"])
 
@@ -31,6 +31,16 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
         
         # Validate selected payment method
         if body.payment_method not in available_methods:
+            # Log failed payment attempt due to invalid payment method
+            log_audit_event(
+                username="customer",
+                action="payment_attempt_failed",
+                resource_type="order",
+                resource_id=str(order.id),
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                details=f"Invalid payment method: {body.payment_method}. Available methods: {', '.join(available_methods)}"
+            )
             raise HTTPException(400, f"Invalid payment method: {body.payment_method}")
         
         session = stripe.checkout.Session.create(
@@ -57,8 +67,30 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
                 db.add(obj)
                 db.commit()
 
+        # Log successful payment attempt
+        log_audit_event(
+            username="customer",
+            action="payment_attempt_created",
+            resource_type="order",
+            resource_id=str(order.id),
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            details=f"Payment session created for Order #{order.id}. Amount: {body.amount/100} {body.currency.upper()}, Method: {body.payment_method}, Session ID: {session.id}"
+        )
+
         return {"url": session.url, "order_id": order.id}
     except Exception as e:
+        # Log failed payment attempt due to system error
+        if 'order' in locals():
+            log_audit_event(
+                username="customer",
+                action="payment_attempt_failed",
+                resource_type="order",
+                resource_id=str(order.id),
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                details=f"System error during payment creation: {str(e)}"
+            )
         raise HTTPException(400, str(e))
 
 @router.get("/payment-methods")
