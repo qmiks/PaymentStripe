@@ -29,15 +29,14 @@ def on_startup():
             db.add(admin_user)
             db.commit()
         
-        # Check if settings exist, create with ENV values if not
+        # Check if settings exist, create with placeholder values if not
         settings_count = len(db.exec(select(AppSettings)).all())
         if settings_count == 0:
-            # Initialize with environment values if available, otherwise placeholders
-            import os
+            # Initialize with placeholder values only
             default_settings = [
-                ("STRIPE_SECRET_KEY", os.getenv("STRIPE_SECRET_KEY", "sk_test_your_stripe_secret_key_here"), "Stripe Secret Key"),
-                ("STRIPE_WEBHOOK_SECRET", os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here"), "Stripe Webhook Secret"),
-                ("STRIPE_PUBLISHABLE_KEY", os.getenv("STRIPE_PUBLISHABLE_KEY", "pk_test_your_publishable_key_here"), "Stripe Publishable Key"),
+                ("STRIPE_SECRET_KEY", "sk_test_your_stripe_secret_key_here", "Stripe Secret Key"),
+                ("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret_here", "Stripe Webhook Secret"),
+                ("STRIPE_PUBLISHABLE_KEY", "pk_test_your_publishable_key_here", "Stripe Publishable Key"),
                 ("PAYMENT_METHODS", "card,blik,p24,bancontact,ideal,sofort", "Available Payment Methods"),
                 ("SUPPORTED_CURRENCIES", "pln,usd,eur,gbp", "Supported Currencies"),
                 ("DEFAULT_CURRENCY", "pln", "Default Currency"),

@@ -18,16 +18,13 @@ class Settings(BaseSettings):
 settings = Settings()
 
 def get_stripe_secret_key() -> str:
-    """Get Stripe secret key from database, fallback to env"""
-    db_key = get_setting("STRIPE_SECRET_KEY")
-    return db_key if db_key else settings.STRIPE_SECRET_KEY
+    """Get Stripe secret key from database only"""
+    return get_setting("STRIPE_SECRET_KEY")
 
 def get_stripe_webhook_secret() -> str:
-    """Get Stripe webhook secret from database, fallback to env"""
-    db_key = get_setting("STRIPE_WEBHOOK_SECRET")
-    return db_key if db_key else settings.STRIPE_WEBHOOK_SECRET
+    """Get Stripe webhook secret from database only"""
+    return get_setting("STRIPE_WEBHOOK_SECRET")
 
 def get_stripe_publishable_key() -> str:
-    """Get Stripe publishable key from database, fallback to env"""
-    db_key = get_setting("STRIPE_PUBLISHABLE_KEY")
-    return db_key if db_key else settings.STRIPE_PUBLISHABLE_KEY
+    """Get Stripe publishable key from database only"""
+    return get_setting("STRIPE_PUBLISHABLE_KEY")
