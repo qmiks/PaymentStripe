@@ -239,3 +239,41 @@ async def get_audit_logs(
             )
             for log in logs
         ]
+
+@router.get("/debug/stripe-keys")
+async def debug_stripe_keys(current_user: AdminUser = Depends(get_current_user)):
+    """Debug endpoint to check Stripe key configuration"""
+    import os
+    from .config import get_stripe_secret_key, get_stripe_publishable_key, get_stripe_webhook_secret
+    from .auth import get_setting
+    
+    # Get values from different sources
+    db_secret = get_setting("STRIPE_SECRET_KEY")
+    db_publishable = get_setting("STRIPE_PUBLISHABLE_KEY")
+    db_webhook = get_setting("STRIPE_WEBHOOK_SECRET")
+    
+    config_secret = get_stripe_secret_key()
+    config_publishable = get_stripe_publishable_key()
+    config_webhook = get_stripe_webhook_secret()
+    
+    env_secret = os.getenv("STRIPE_SECRET_KEY")
+    env_publishable = os.getenv("STRIPE_PUBLISHABLE_KEY")
+    env_webhook = os.getenv("STRIPE_WEBHOOK_SECRET")
+    
+    return {
+        "database": {
+            "secret": db_secret,
+            "publishable": db_publishable,
+            "webhook": db_webhook
+        },
+        "config_functions": {
+            "secret": config_secret,
+            "publishable": config_publishable,
+            "webhook": config_webhook
+        },
+        "environment": {
+            "secret": env_secret,
+            "publishable": env_publishable,
+            "webhook": env_webhook
+        }
+    }
