@@ -164,7 +164,11 @@ async def get_payment_methods():
 @router.get("/test-deployment")
 async def test_deployment():
     """Test endpoint to verify deployment"""
-    return {"message": "Deployment test - updated code is running", "timestamp": "2024-01-19"}
+    try:
+        import requests
+        return {"message": "Deployment test - updated code is running", "timestamp": "2024-01-19", "requests_available": True}
+    except ImportError:
+        return {"message": "Deployment test - updated code is running", "timestamp": "2024-01-19", "requests_available": False, "error": "requests not available"}
 
 @router.get("/currencies")
 async def get_currencies():
