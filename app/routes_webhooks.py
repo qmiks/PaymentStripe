@@ -11,14 +11,14 @@ router = APIRouter(tags=["webhooks"])
 
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
-    # Get Stripe API key from database and create client
+    # Get Stripe API key from database and set it globally for this request
     stripe_key = get_stripe_secret_key()
-    stripe_client = stripe.StripeClient(stripe_key)
+    stripe.api_key = stripe_key
     
     payload = await request.body()
     sig = request.headers.get("stripe-signature")
     try:
-        event = stripe_client.webhooks.construct_event(payload, sig, get_stripe_webhook_secret())
+        event = stripe.Webhook.construct_event(payload, sig, get_stripe_webhook_secret())
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Webhook signature verification failed: {e}")
 
