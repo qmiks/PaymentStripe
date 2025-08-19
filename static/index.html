@@ -4,28 +4,355 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FastAPI + Stripe (BLIK) — Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      
+      .container {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        padding: 2rem;
+        width: 100%;
+        max-width: 500px;
+        text-align: center;
+      }
+      
+      h1 {
+        color: #333;
+        margin-bottom: 2rem;
+        font-size: 2rem;
+      }
+      
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+      
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #555;
+        font-weight: 500;
+      }
+      
+      input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.3s ease;
+      }
+      
+      input:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+      
+      button {
+        width: 100%;
+        padding: 0.75rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+        margin-bottom: 1rem;
+      }
+      
+      button:hover {
+        transform: translateY(-2px);
+      }
+      
+      .links {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e1e5e9;
+      }
+      
+      .links a {
+        display: inline-block;
+        margin: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #f8f9fa;
+        color: #667eea;
+        text-decoration: none;
+        border-radius: 6px;
+        transition: background-color 0.3s ease;
+      }
+      
+      .links a:hover {
+        background: #e9ecef;
+      }
+      
+      .admin-link {
+        background: #dc3545 !important;
+        color: white !important;
+      }
+      
+      .admin-link:hover {
+        background: #c82333 !important;
+      }
+      
+      .payment-methods-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 0.5rem;
+      }
+      
+      .payment-method-option {
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+        text-align: center;
+      }
+      
+      .payment-method-option:hover {
+        border-color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      }
+      
+      .payment-method-option.selected {
+        border-color: #667eea;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+      
+      .payment-method-option .method-name {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+      
+      .payment-method-option .method-description {
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+      
+      .loading {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+      }
+      
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none !important;
+      }
+    </style>
   </head>
   <body>
-    <h1>FastAPI + Stripe Checkout (BLIK)</h1>
-    <div>
-      <label>Kwota (PLN): <input id="amount" type="number" min="1" step="1" value="20" /></label>
-      <button id="pay">Zapłać (BLIK)</button>
-      <p><a href="/api/orders" target="_blank">Podgląd zamówień (JSON)</a></p>
+          <div class="container">
+        <h1>FastAPI + Stripe Checkout</h1>
+        <div class="form-group">
+          <label for="amount">Amount:</label>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input id="amount" type="number" min="1" step="1" value="20" style="flex: 1;" />
+            <select id="currency" style="padding: 0.75rem; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 1rem; background: white;">
+              <option value="pln">PLN</option>
+              <option value="usd">USD</option>
+              <option value="eur">EUR</option>
+              <option value="gbp">GBP</option>
+            </select>
+          </div>
+        </div>
+      
+      <div class="form-group">
+        <label><strong>Select Payment Method:</strong></label>
+        <div id="payment-methods-selection" class="payment-methods-grid">
+          <div class="loading">Loading payment methods...</div>
+        </div>
+      </div>
+      
+      <button id="pay" disabled>Pay</button>
+      
+      <div class="links">
+        <a href="/api/orders" target="_blank">Podgląd zamówień (JSON)</a>
+        <a href="/admin" class="admin-link">Panel Administratora</a>
+      </div>
     </div>
     <script>
-      async function createSession(amountPln) {
+      async function createSession(amount, currency, paymentMethod) {
+        // Convert amount to smallest currency unit (cents, pence, etc.)
+        let amountInSmallestUnit = amount;
+        if (currency === 'pln') {
+          amountInSmallestUnit = amount * 100; // PLN to grosze
+        } else if (currency === 'usd' || currency === 'eur' || currency === 'gbp') {
+          amountInSmallestUnit = amount * 100; // Dollars/Euros/Pounds to cents/pence
+        }
+        
         const res = await fetch('/api/checkout/session', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({amount_pln: amountPln})
+          body: JSON.stringify({
+            amount: amountInSmallestUnit,
+            currency: currency,
+            payment_method: paymentMethod
+          })
         });
         if (!res.ok) throw new Error(await res.text());
         return res.json();
       }
+      
+      let selectedPaymentMethod = null;
+      
+      async function loadPaymentMethods() {
+        const selectionGrid = document.getElementById('payment-methods-selection');
+        
+        try {
+          const response = await fetch('/api/checkout/payment-methods');
+          console.log('Payment methods response status:', response.status);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Payment methods data:', data);
+            
+            if (data.payment_methods && data.payment_methods.length > 0) {
+              // Update the selection grid
+              selectionGrid.innerHTML = '';
+              data.payment_methods.forEach(method => {
+                const option = document.createElement('div');
+                option.className = 'payment-method-option';
+                option.dataset.method = method.code;
+                option.innerHTML = `
+                  <div class="method-name">${method.name}</div>
+                  <div class="method-description">Click to select</div>
+                `;
+                option.addEventListener('click', () => selectPaymentMethod(method.code, option));
+                selectionGrid.appendChild(option);
+              });
+              
+              // Auto-select first method
+              if (data.payment_methods.length > 0) {
+                selectPaymentMethod(data.payment_methods[0].code, selectionGrid.firstElementChild);
+              }
+            } else {
+              throw new Error('No payment methods returned');
+            }
+          } else {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+        } catch (error) {
+          console.error('Error loading payment methods:', error);
+          
+          // Fallback selection grid
+          const fallbackMethods = [
+            { code: 'card', name: '💳 Credit/Debit Cards' },
+            { code: 'blik', name: '📱 BLIK' },
+            { code: 'p24', name: '🏦 Przelewy24 (P24)' }
+          ];
+          
+          selectionGrid.innerHTML = '';
+          fallbackMethods.forEach(method => {
+            const option = document.createElement('div');
+            option.className = 'payment-method-option';
+            option.dataset.method = method.code;
+            option.innerHTML = `
+              <div class="method-name">${method.name}</div>
+              <div class="method-description">Click to select</div>
+            `;
+            option.addEventListener('click', () => selectPaymentMethod(method.code, option));
+            selectionGrid.appendChild(option);
+          });
+          
+          // Auto-select first method
+          if (fallbackMethods.length > 0) {
+            selectPaymentMethod(fallbackMethods[0].code, selectionGrid.firstElementChild);
+          }
+        }
+      }
+      
+      function selectPaymentMethod(methodCode, element) {
+        // Remove selection from all options
+        document.querySelectorAll('.payment-method-option').forEach(option => {
+          option.classList.remove('selected');
+        });
+        
+        // Add selection to clicked option
+        element.classList.add('selected');
+        selectedPaymentMethod = methodCode;
+        
+        // Enable the pay button
+        document.getElementById('pay').disabled = false;
+        
+        console.log('Selected payment method:', methodCode);
+      }
+      
       document.getElementById('pay').addEventListener('click', async () => {
+        if (!selectedPaymentMethod) {
+          alert('Please select a payment method');
+          return;
+        }
+        
         const amount = parseInt(document.getElementById('amount').value, 10) || 20;
-        const { url } = await createSession(amount);
+        const currency = document.getElementById('currency').value;
+        const { url } = await createSession(amount, currency, selectedPaymentMethod);
         window.location.href = url;
+      });
+      
+      async function loadCurrencies() {
+        try {
+          const response = await fetch('/api/checkout/currencies');
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Currencies data:', data);
+            
+            if (data.currencies && data.currencies.length > 0) {
+              const currencySelect = document.getElementById('currency');
+              currencySelect.innerHTML = '';
+              
+              data.currencies.forEach(currency => {
+                const option = document.createElement('option');
+                option.value = currency.code;
+                option.textContent = `${currency.code.toUpperCase()} - ${currency.name}`;
+                if (currency.is_default) {
+                  option.selected = true;
+                }
+                currencySelect.appendChild(option);
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error loading currencies:', error);
+        }
+      }
+      
+      // Load payment methods when page loads
+      document.addEventListener('DOMContentLoaded', function() {
+        // Try to load currencies and payment methods after a short delay
+        setTimeout(() => {
+          loadCurrencies();
+          loadPaymentMethods();
+        }, 500);
+      });
+      
+      // Also try to load on window load as backup
+      window.addEventListener('load', function() {
+        setTimeout(() => {
+          loadCurrencies();
+          loadPaymentMethods();
+        }, 1000);
       });
     </script>
   </body>

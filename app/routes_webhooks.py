@@ -1,7 +1,7 @@
 import stripe
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
-from .config import settings
+from .config import settings, get_stripe_webhook_secret
 from .db import get_session
 from .models import Order
 from datetime import datetime
@@ -13,7 +13,7 @@ async def stripe_webhook(request: Request):
     payload = await request.body()
     sig = request.headers.get("stripe-signature")
     try:
-        event = stripe.Webhook.construct_event(payload, sig, settings.STRIPE_WEBHOOK_SECRET)
+        event = stripe.Webhook.construct_event(payload, sig, get_stripe_webhook_secret())
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Webhook signature verification failed: {e}")
 

@@ -5,3 +5,5 @@ stripe==10.6.0
 pydantic==2.8.2
 pydantic-settings==2.4.0
 sqlmodel==0.0.22
+PyJWT==2.8.0
+passlib[bcrypt]==1.7.4
