@@ -47,7 +47,7 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
             )
             raise HTTPException(400, f"Invalid payment method: {body.payment_method}")
         
-        session = stripe_client.checkout.Sessions.create(
+        session = stripe_client.checkout.sessions.create(
             mode="payment",
             payment_method_types=[body.payment_method],
             line_items=[{
