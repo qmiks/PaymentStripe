@@ -79,21 +79,6 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
             raise HTTPException(400, f"Stripe API error: {response.text}")
         
         session_data = response.json()
-            mode="payment",
-            payment_method_types=[body.payment_method],
-            line_items=[{
-                "price_data": {
-                    "currency": body.currency.lower(),
-                    "product_data": {"name": f"Order #{order.id}"},
-                    "unit_amount": body.amount,
-                },
-                "quantity": 1,
-            }],
-            client_reference_id=str(order.id),
-            success_url=f"{settings.APP_BASE_URL}/?success=1&order_id={order.id}&sid={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{settings.APP_BASE_URL}/?canceled=1&order_id={order.id}",
-            idempotency_key=idem_key
-        )
 
         with get_session() as db:
             obj = db.get(Order, order.id)
