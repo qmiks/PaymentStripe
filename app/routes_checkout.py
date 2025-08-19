@@ -17,8 +17,9 @@ class CreateSessionRequest(BaseModel):
 @router.post("/session")
 async def create_checkout_session(body: CreateSessionRequest, request: Request):
     try:
-        # Set Stripe API key dynamically from database
-        stripe.api_key = get_stripe_secret_key()
+        # Get Stripe API key from database and create client
+        stripe_key = get_stripe_secret_key()
+        stripe_client = stripe.StripeClient(stripe_key)
         
         # Create Order
         with get_session() as db:
@@ -46,7 +47,7 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
             )
             raise HTTPException(400, f"Invalid payment method: {body.payment_method}")
         
-        session = stripe.checkout.Session.create(
+        session = stripe_client.checkout.Sessions.create(
             mode="payment",
             payment_method_types=[body.payment_method],
             line_items=[{
