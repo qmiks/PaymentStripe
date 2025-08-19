@@ -20,6 +20,8 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
         # Get Stripe API key from database and set it globally for this request
         stripe_key = get_stripe_secret_key()
         stripe.api_key = stripe_key
+        print(f"DEBUG: Setting Stripe API key to: {stripe_key[:20]}...")
+        print(f"DEBUG: Current stripe.api_key: {stripe.api_key[:20]}...")
         
         # Create Order
         with get_session() as db:
@@ -129,6 +131,11 @@ async def get_payment_methods():
         return {"payment_methods": available_methods}
     except Exception as e:
         raise HTTPException(400, str(e))
+
+@router.get("/test-deployment")
+async def test_deployment():
+    """Test endpoint to verify deployment"""
+    return {"message": "Deployment test - updated code is running", "timestamp": "2024-01-19"}
 
 @router.get("/currencies")
 async def get_currencies():
