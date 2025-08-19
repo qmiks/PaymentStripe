@@ -20,14 +20,7 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
         # Get Stripe API key from database and set it globally for this request
         stripe_key = get_stripe_secret_key()
         
-        # Force reimport stripe to clear any cached state
-        import importlib
-        import stripe
-        importlib.reload(stripe)
-        
-        stripe.api_key = stripe_key
-        print(f"DEBUG: Setting Stripe API key to: {stripe_key[:20]}...")
-        print(f"DEBUG: Current stripe.api_key: {stripe.api_key[:20]}...")
+        print(f"DEBUG: Using Stripe API key: {stripe_key[:20]}...")
         
         # Create Order
         with get_session() as db:
@@ -55,7 +48,37 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
             )
             raise HTTPException(400, f"Invalid payment method: {body.payment_method}")
         
-        session = stripe.checkout.Session.create(
+        # Use requests directly to call Stripe API
+        import requests
+        
+        # Format data for Stripe API (form-encoded)
+        stripe_data = {
+            "mode": "payment",
+            "payment_method_types[]": body.payment_method,
+            "line_items[0][price_data][currency]": body.currency.lower(),
+            "line_items[0][price_data][product_data][name]": f"Order #{order.id}",
+            "line_items[0][price_data][unit_amount]": str(body.amount),
+            "line_items[0][quantity]": "1",
+            "client_reference_id": str(order.id),
+            "success_url": f"{settings.APP_BASE_URL}/?success=1&order_id={order.id}&sid={{CHECKOUT_SESSION_ID}}",
+            "cancel_url": f"{settings.APP_BASE_URL}/?canceled=1&order_id={order.id}",
+        }
+        
+        response = requests.post(
+            "https://api.stripe.com/v1/checkout/sessions",
+            headers={
+                "Authorization": f"Bearer {stripe_key}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Idempotency-Key": idem_key
+            },
+            data=stripe_data
+        )
+        
+        if response.status_code != 200:
+            print(f"DEBUG: Stripe API error: {response.status_code} - {response.text}")
+            raise HTTPException(400, f"Stripe API error: {response.text}")
+        
+        session_data = response.json()
             mode="payment",
             payment_method_types=[body.payment_method],
             line_items=[{
@@ -75,7 +98,7 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
         with get_session() as db:
             obj = db.get(Order, order.id)
             if obj:
-                obj.stripe_session_id = session.id
+                obj.stripe_session_id = session_data["id"]
                 db.add(obj)
                 db.commit()
 
@@ -87,10 +110,10 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
             resource_id=str(order.id),
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            details=f"Payment session created for Order #{order.id}. Amount: {body.amount/100} {body.currency.upper()}, Method: {body.payment_method}, Session ID: {session.id}"
+            details=f"Payment session created for Order #{order.id}. Amount: {body.amount/100} {body.currency.upper()}, Method: {body.payment_method}, Session ID: {session_data['id']}"
         )
 
-        return {"url": session.url, "order_id": order.id}
+        return {"url": session_data["url"], "order_id": order.id}
     except Exception as e:
         # Log failed payment attempt due to system error
         if 'order' in locals():
