@@ -71,3 +71,13 @@ async def root():
 async def admin():
     from fastapi.responses import FileResponse
     return FileResponse(os.path.join(static_dir, "admin.html"))
+
+@app.get("/success")
+async def success():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(static_dir, "success.html"))
+
+@app.get("/cancel")
+async def cancel():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(static_dir, "cancel.html"))

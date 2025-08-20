@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payment Canceled — FastAPI + Stripe</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      
+      .cancel-container {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        max-width: 500px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        animation: slideIn 0.6s ease;
+      }
+      
+      .cancel-icon {
+        font-size: 80px;
+        margin-bottom: 20px;
+        animation: shake 0.8s ease;
+      }
+      
+      .cancel-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #2d3748;
+        margin-bottom: 15px;
+      }
+      
+      .cancel-message {
+        font-size: 16px;
+        color: #718096;
+        line-height: 1.6;
+        margin-bottom: 30px;
+      }
+      
+      .order-details {
+        background: #fef5e7;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        border-left: 4px solid #ed8936;
+      }
+      
+      .order-detail {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+      
+      .order-detail:last-child {
+        margin-bottom: 0;
+      }
+      
+      .order-detail .label {
+        color: #718096;
+        font-weight: 500;
+      }
+      
+      .order-detail .value {
+        color: #2d3748;
+        font-weight: 600;
+      }
+      
+      .actions {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      
+      .btn {
+        padding: 12px 24px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+        display: inline-block;
+      }
+      
+      .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+      
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+      }
+      
+      .btn-secondary {
+        background: #e2e8f0;
+        color: #4a5568;
+      }
+      
+      .btn-secondary:hover {
+        background: #cbd5e0;
+        transform: translateY(-1px);
+      }
+      
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      
+      @keyframes shake {
+        0%, 100% {
+          transform: translateX(0);
+        }
+        10%, 30%, 50%, 70%, 90% {
+          transform: translateX(-5px);
+        }
+        20%, 40%, 60%, 80% {
+          transform: translateX(5px);
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .cancel-container {
+          padding: 30px 20px;
+        }
+        
+        .cancel-title {
+          font-size: 24px;
+        }
+        
+        .actions {
+          flex-direction: column;
+        }
+        
+        .btn {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="cancel-container">
+      <div class="cancel-icon">❌</div>
+      <h1 class="cancel-title">Payment Canceled</h1>
+      <p class="cancel-message">
+        Your payment was canceled. No charges were made to your account.
+        You can try again anytime.
+      </p>
+      
+      <div class="order-details" id="order-details">
+        <div class="order-detail">
+          <span class="label">Order ID:</span>
+          <span class="value" id="order-id">Loading...</span>
+        </div>
+        <div class="order-detail">
+          <span class="label">Status:</span>
+          <span class="value" id="order-status">Canceled</span>
+        </div>
+        <div class="order-detail">
+          <span class="label">Date:</span>
+          <span class="value" id="order-date">Loading...</span>
+        </div>
+      </div>
+      
+      <div class="actions">
+        <a href="/" class="btn btn-primary">Try Again</a>
+        <a href="/admin" class="btn btn-secondary">Admin Panel</a>
+      </div>
+    </div>
+
+    <script>
+      // Parse URL parameters
+      function getUrlParameter(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+      }
+      
+      // Load order details
+      async function loadOrderDetails() {
+        const orderId = getUrlParameter('order_id');
+        
+        if (orderId) {
+          document.getElementById('order-id').textContent = orderId;
+          
+          try {
+            // Fetch order details from API
+            const response = await fetch(`/api/orders/${orderId}`);
+            if (response.ok) {
+              const order = await response.json();
+              document.getElementById('order-date').textContent = new Date(order.created_at).toLocaleString();
+            }
+          } catch (error) {
+            console.error('Error loading order details:', error);
+            // Fallback to basic info
+            document.getElementById('order-date').textContent = new Date().toLocaleString();
+          }
+        } else {
+          // No order ID, hide order details
+          document.getElementById('order-details').style.display = 'none';
+        }
+      }
+      
+      // Initialize page
+      document.addEventListener('DOMContentLoaded', function() {
+        loadOrderDetails();
+        
+        // Add some delay for better UX
+        setTimeout(() => {
+          document.querySelector('.cancel-container').style.opacity = '1';
+        }, 100);
+      });
+    </script>
+  </body>
+</html>

@@ -76,8 +76,8 @@ async def create_checkout_session(body: CreateSessionRequest, request: Request):
             "line_items[0][price_data][unit_amount]": str(body.amount),
             "line_items[0][quantity]": "1",
             "client_reference_id": str(order.id),
-            "success_url": f"http://localhost:8000/?success=1&order_id={order.id}&sid={{CHECKOUT_SESSION_ID}}",
-            "cancel_url": f"http://localhost:8000/?canceled=1&order_id={order.id}",
+            "success_url": f"http://localhost:8000/success?order_id={order.id}&sid={{CHECKOUT_SESSION_ID}}",
+            "cancel_url": f"http://localhost:8000/cancel?order_id={order.id}",
         }
         
         response = requests.post(
