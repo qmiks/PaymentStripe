@@ -9,8 +9,12 @@ from .auth import (
     verify_password, get_password_hash, create_access_token, 
     get_current_user, get_setting, set_setting, log_audit_event, ACCESS_TOKEN_EXPIRE_MINUTES
 )
+import logging
+import stripe
+from .config import get_stripe_secret_key
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+logger = logging.getLogger("app.admin")
 
 class LoginRequest(BaseModel):
     username: str
@@ -44,6 +48,20 @@ class AuditLogResponse(BaseModel):
     user_agent: Optional[str] = None
     created_at: str
     details: Optional[str] = None
+
+class StripePaymentMethod(BaseModel):
+    code: str
+    name: str
+    active: bool | None = None
+    capability: Optional[str] = None
+    status: Optional[str] = None
+
+class StripePaymentMethodsResponse(BaseModel):
+    currency: str
+    amount: int
+    payment_methods: list[StripePaymentMethod]
+    account_id: Optional[str] = None
+    country: Optional[str] = None
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest, client_request: Request):
@@ -143,6 +161,93 @@ async def update_setting(
         updated_at=setting.updated_at.isoformat(),
         updated_by=setting.updated_by
     )
+
+@router.get("/stripe/payment-methods", response_model=StripePaymentMethodsResponse)
+async def admin_stripe_payment_methods(
+    currency: str = "pln",
+    amount: int = 2000,
+    current_user: AdminUser = Depends(get_current_user),
+):
+    """
+    Secure admin endpoint to fetch Stripe-active payment methods for a given
+    currency/amount by probing a PaymentIntent. Augments results with account
+    capability status when available.
+    """
+    try:
+        # Probe with PI to get payment_method_types
+        stripe.api_key = get_stripe_secret_key()
+        pi = stripe.PaymentIntent.create(
+            amount=amount,
+            currency=currency.lower(),
+            automatic_payment_methods={"enabled": True},
+        )
+        pm_types = list(getattr(pi, "payment_method_types", []) or pi.get("payment_method_types", []))
+
+        # Cleanup best-effort
+        try:
+            stripe.PaymentIntent.cancel(pi.id)
+        except Exception:
+            pass
+
+        # Map display names
+        method_names = {
+            "card": "💳 Credit/Debit Cards",
+            "blik": "📱 BLIK",
+            "p24": "🏦 Przelewy24 (P24)",
+            "bancontact": "🇪🇺 Bancontact (Belgium)",
+            "ideal": "🇳🇱 iDEAL (Netherlands)",
+            "sofort": "🇩🇪 SOFORT (Germany)",
+            "giropay": "🇩🇪 Giropay (Germany)",
+            "eps": "🇦🇹 EPS (Austria)",
+            "sepa_debit": "🇪🇺 SEPA Direct Debit",
+            "sepa_credit_transfer": "🇪🇺 SEPA Credit Transfer",
+            "paypal": "🅿️ PayPal",
+            "alipay": "🇨🇳 Alipay",
+            "klarna": "🇪🇺 Klarna",
+        }
+
+        # Try to attach capabilities info
+        acct = stripe.Account.retrieve()
+        caps = getattr(acct, "capabilities", {}) or {}
+        capability_map = {
+            "card": "card_payments",
+            "blik": "blik_payments",
+            "p24": "p24_payments",
+            "ideal": "ideal_payments",
+            "bancontact": "bancontact_payments",
+            "sofort": "sofort_payments",
+            "giropay": "giropay_payments",
+            "eps": "eps_payments",
+            "sepa_debit": "sepa_debit_payments",
+        }
+
+        methods: list[StripePaymentMethod] = []
+        for code in pm_types:
+            cap_key = capability_map.get(code)
+            status = caps.get(cap_key) if cap_key else None
+            methods.append(StripePaymentMethod(
+                code=code,
+                name=method_names.get(code, code),
+                active=(status == "active") if status is not None else None,
+                capability=cap_key,
+                status=status,
+            ))
+
+        logger.info("Admin fetched Stripe methods for %s %s: %s", amount, currency.upper(), ", ".join(pm_types) or "(none)")
+        return StripePaymentMethodsResponse(
+            currency=currency.lower(),
+            amount=amount,
+            payment_methods=methods,
+            account_id=acct.get("id"),
+            country=acct.get("country"),
+        )
+    except stripe.error.StripeError as e:  # type: ignore
+        user_msg = getattr(e, "user_message", None) or str(e)
+        logger.exception("Stripe error in admin methods: %s", user_msg)
+        raise HTTPException(status_code=400, detail=user_msg)
+    except Exception as e:
+        logger.exception("Unexpected error in admin stripe methods")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/init")
 async def initialize_admin():

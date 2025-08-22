@@ -1,4 +1,5 @@
 import stripe
+import logging
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 from .config import settings, get_stripe_webhook_secret, get_stripe_secret_key
@@ -8,6 +9,7 @@ from .auth import log_audit_event
 from datetime import datetime
 
 router = APIRouter(tags=["webhooks"])
+logger = logging.getLogger("app.webhook")
 
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
@@ -20,7 +22,10 @@ async def stripe_webhook(request: Request):
     try:
         event = stripe.Webhook.construct_event(payload, sig, get_stripe_webhook_secret())
     except Exception as e:
+        logger.warning("Webhook signature verification failed: %s", e)
         raise HTTPException(status_code=400, detail=f"Webhook signature verification failed: {e}")
+
+    logger.info("Webhook received: id=%s type=%s", event.get("id"), event.get("type"))
 
     if event["type"] == "checkout.session.completed":
         session_obj = event["data"]["object"]
@@ -47,7 +52,7 @@ async def stripe_webhook(request: Request):
                         new_value="paid",
                         details=f"Payment completed via Stripe webhook. Payment Intent: {payment_intent_id}, Session: {session_obj.get('id')}"
                     )
-        print("[webhook] checkout.session.completed for order", order_id)
+        logger.info("checkout.session.completed for order=%s", order_id)
 
     elif event["type"] == "payment_intent.payment_failed":
         pi = event["data"]["object"]
@@ -72,7 +77,7 @@ async def stripe_webhook(request: Request):
                         new_value="failed",
                         details=f"Payment failed via Stripe webhook. Payment Intent: {pi.get('id')}, Failure reason: {pi.get('last_payment_error', {}).get('message', 'Unknown')}"
                     )
-        print("[webhook] payment failed:", pi.get("id"))
+        logger.info("payment_intent.payment_failed id=%s last_payment_error=%s", pi.get("id"), (pi.get('last_payment_error') or {}).get('message'))
 
     elif event["type"] == "checkout.session.expired":
         session_obj = event["data"]["object"]
@@ -97,6 +102,6 @@ async def stripe_webhook(request: Request):
                         new_value="expired",
                         details=f"Payment session expired via Stripe webhook. Session: {session_obj.get('id')}"
                     )
-        print("[webhook] checkout.session.expired for order", order_id)
+        logger.info("checkout.session.expired for order=%s", order_id)
 
     return JSONResponse({"received": True})

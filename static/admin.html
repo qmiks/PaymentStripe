@@ -723,21 +723,34 @@
                 settingDiv.className = 'setting-item';
                 
                 if (setting.key === 'PAYMENT_METHODS') {
-                    // Special handling for payment methods
+                    // Special handling for payment methods (now sourced from Stripe)
                     settingDiv.innerHTML = `
-                        <div class="setting-key">${setting.key}</div>
-                        <div class="setting-description">${setting.description || ''}</div>
+                        <div class="setting-key">${setting.key} (from Stripe)</div>
+                        <div class="setting-description">Live list based on your Stripe account's capabilities for the selected currency and amount.</div>
+                        <div style="display:flex; gap:.5rem; align-items:center; margin:.5rem 0 1rem 0;">
+                          <label for="pm_currency">Currency:</label>
+                          <select id="pm_currency" style="padding: .5rem; border: 1px solid #ddd; border-radius: 6px;">
+                            <option value="pln">PLN</option>
+                            <option value="usd">USD</option>
+                            <option value="eur">EUR</option>
+                            <option value="gbp">GBP</option>
+                          </select>
+                          <label for="pm_amount">Amount:</label>
+                          <input id="pm_amount" type="number" value="2000" min="50" step="50" style="width:120px; padding:.5rem; border:1px solid #ddd; border-radius:6px;" />
+                          <button id="pm_refresh" style="width:auto; padding:.5rem 1rem;">Refresh</button>
+                        </div>
                         <div id="payment-methods-container">
                             <div class="payment-methods-grid" id="payment-methods-grid">
                                 <!-- Payment methods will be loaded here -->
                             </div>
+                            <div id="payment-methods-note" style="font-size: 0.85rem; color: #666; margin-top: .5rem;"></div>
                         </div>
                         <div style="font-size: 0.8rem; color: #999; margin-top: 0.5rem;">
                             Updated: ${new Date(setting.updated_at).toLocaleString()}
                         </div>
                     `;
                     container.appendChild(settingDiv);
-                    loadPaymentMethodsUI(setting.value);
+                    initStripePaymentMethodsUI();
                 } else if (setting.key === 'SUPPORTED_CURRENCIES') {
                     // Special handling for currencies
                     settingDiv.innerHTML = `
@@ -1019,72 +1032,58 @@
             });
         }
         
-        function loadPaymentMethodsUI(currentValue) {
-            const grid = document.getElementById('payment-methods-grid');
-            if (!grid) return;
-            
-            // Parse current value
-            const currentMethods = currentValue ? currentValue.split(',').map(m => m.trim()) : [];
-            
-            // Available payment methods with their display names
-            const availableMethods = [
-                { code: 'card', name: '💳 Credit/Debit Cards' },
-                { code: 'blik', name: '📱 BLIK' },
-                { code: 'p24', name: '🏦 Przelewy24 (P24)' },
-                { code: 'bancontact', name: '🇪🇺 Bancontact (Belgium)' },
-                { code: 'ideal', name: '🇳🇱 iDEAL (Netherlands)' },
-                { code: 'sofort', name: '🇩🇪 SOFORT (Germany)' },
-                { code: 'giropay', name: '🇩🇪 Giropay (Germany)' },
-                { code: 'eps', name: '🇦🇹 EPS (Austria)' },
-                { code: 'sepa_debit', name: '🇪🇺 SEPA Direct Debit' },
-                { code: 'sepa_credit_transfer', name: '🇪🇺 SEPA Credit Transfer' }
-            ];
-            
-            grid.innerHTML = '';
-            
-            availableMethods.forEach(method => {
-                const isSelected = currentMethods.includes(method.code);
-                const checkboxDiv = document.createElement('div');
-                checkboxDiv.className = `payment-method-checkbox ${isSelected ? 'selected' : ''}`;
-                checkboxDiv.innerHTML = `
-                    <input type="checkbox" id="pm_${method.code}" ${isSelected ? 'checked' : ''}>
-                    <label for="pm_${method.code}">${method.name}</label>
-                `;
-                
-                // Add click handlers
-                const checkbox = checkboxDiv.querySelector('input');
-                checkbox.addEventListener('change', () => {
-                    updatePaymentMethodsSelection();
-                });
-                
-                checkboxDiv.addEventListener('click', (e) => {
-                    if (e.target !== checkbox) {
-                        checkbox.checked = !checkbox.checked;
-                        updatePaymentMethodsSelection();
-                    }
-                });
-                
-                grid.appendChild(checkboxDiv);
-            });
+        function initStripePaymentMethodsUI() {
+            const currencySel = document.getElementById('pm_currency');
+            const amountInput = document.getElementById('pm_amount');
+            const refreshBtn = document.getElementById('pm_refresh');
+            const load = async () => {
+                await loadStripePaymentMethods(currencySel.value, parseInt(amountInput.value, 10) || 2000);
+            };
+            refreshBtn.addEventListener('click', load);
+            currencySel.addEventListener('change', load);
+            amountInput.addEventListener('change', load);
+            load();
         }
-        
-        function updatePaymentMethodsSelection() {
-            const checkboxes = document.querySelectorAll('#payment-methods-grid input[type="checkbox"]:checked');
-            const selectedMethods = Array.from(checkboxes).map(cb => cb.id.replace('pm_', ''));
-            
-            // Update the visual selection
-            document.querySelectorAll('.payment-method-checkbox').forEach(div => {
-                const checkbox = div.querySelector('input');
-                if (checkbox.checked) {
-                    div.classList.add('selected');
-                } else {
-                    div.classList.remove('selected');
+
+        async function loadStripePaymentMethods(currency, amount) {
+            const grid = document.getElementById('payment-methods-grid');
+            const note = document.getElementById('payment-methods-note');
+            if (!grid) return;
+            grid.innerHTML = '<div style="padding:.5rem; color:#666;">Loading from Stripe…</div>';
+            note.textContent = '';
+
+            try {
+                const resp = await fetch(`/api/admin/stripe/payment-methods?currency=${encodeURIComponent(currency)}&amount=${encodeURIComponent(amount)}` ,{
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!resp.ok) {
+                    const t = await resp.text();
+                    throw new Error(t || `HTTP ${resp.status}`);
                 }
-            });
-            
-            // Update the setting value
-            const newValue = selectedMethods.join(',');
-            updateSetting('PAYMENT_METHODS', newValue);
+                const data = await resp.json();
+                grid.innerHTML = '';
+
+                if (!data.payment_methods || data.payment_methods.length === 0) {
+                    grid.innerHTML = '<div style="padding:.5rem; color:#666;">No methods available for this currency/amount.</div>';
+                    return;
+                }
+
+                data.payment_methods.forEach(pm => {
+                    const div = document.createElement('div');
+                    div.className = 'payment-method-checkbox selected';
+                    const status = pm.status ? ` (capability: ${pm.status})` : '';
+                    div.innerHTML = `
+                        <input type="checkbox" checked disabled>
+                        <label>${pm.name}${status}</label>
+                    `;
+                    grid.appendChild(div);
+                });
+
+                note.textContent = `Account ${data.account_id || ''} ${data.country ? '• ' + data.country : ''} • Currency ${data.currency.toUpperCase()} • Amount ${data.amount}`;
+            } catch (err) {
+                grid.innerHTML = '';
+                showError('message', 'Failed to load Stripe payment methods', String(err));
+            }
         }
         
         function loadCurrenciesUI(currentValue) {

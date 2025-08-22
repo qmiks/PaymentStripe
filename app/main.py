@@ -1,5 +1,7 @@
 import os
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from .config import settings, get_stripe_secret_key
 from . import routes_checkout, routes_webhooks, routes_orders, routes_admin
@@ -7,9 +9,32 @@ from .db import init_db
 
 app = FastAPI(title="FastAPI + Stripe BLIK Demo (with DB + Admin)")
 
+# Basic logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("app")
+
+# Optional verbose Stripe SDK logging (do not enable in production)
+if os.getenv("STRIPE_DEBUG") == "1":
+    try:
+        import stripe  # type: ignore
+        stripe.log = "debug"  # noqa: F401
+        logger.info("Stripe debug logging is enabled")
+    except Exception:
+        logger.warning("Stripe SDK not available for debug logging")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error for %s %s", request.method, request.url)
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
 @app.on_event("startup")
 def on_startup():
     init_db()
+    logger.info("Database initialized on startup")
     
     # Auto-initialize admin user and settings if they don't exist
     from .db import get_session
